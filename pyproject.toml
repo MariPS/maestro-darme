@@ -3,7 +3,9 @@ name="maestro-darme"
 version="0.1.0"
 requires-python=">=3.11"
 dependencies=[
-    "requests",  # download from Wiktenauer
+    "requests",         # download from Wiktenauer
+    "beautifulsoup4",   # navigate the HTML
+    "lxml",             # fast HTML parser used by BeautifulSoup
 ]
 
 [build-system]

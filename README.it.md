@@ -102,9 +102,22 @@ maestro-darme/
 │   └── acquire/
 │       └── wiktenauer.py     # client per la MediaWiki API di Wiktenauer
 ├── scripts/
-│   └── 01_acquire.py         # scarica i trattati in corpus/raw/
+│   ├── 01_acquire.py         # scarica i trattati in corpus/raw/
+│   └── explore_html.py       # riassume le tabelle di una pagina scaricata
+├── docs/
+│   └── DEVLOG.md             # scoperte e scelte di progetto (in inglese)
 └── corpus/                   # generato dagli script, non versionato
 ```
+
+Per vedere com'è organizzato l'HTML scaricato, prima di analizzarlo:
+
+```bash
+python scripts/explore_html.py corpus/raw/fiore/fiore_de_i_liberi.html      # tutte le tabelle
+python scripts/explore_html.py corpus/raw/fiore/fiore_de_i_liberi.html 1    # una tabella, cella per cella
+```
+
+Cosa ha rivelato questa esplorazione, e perché determina il parser, è descritto nel
+[diario di sviluppo](docs/DEVLOG.md).
 
 ## Roadmap
 
