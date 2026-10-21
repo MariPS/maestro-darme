@@ -1,11 +1,11 @@
-from maestro.acquire.wiktenauer import scarica_pagina, nome_file
+from maestro.acquire.wiktenauer import download_page, safe_filename
 from pathlib import Path
 
-titolo = "Fiore de'i Liberi"
-cartella = Path("corpus/raw/fiore")        # percorso relativo: vale se lanci dalla radice
-destinazione = cartella / (nome_file(titolo) + ".html")
+title = "Fiore de'i Liberi"
+folder = Path("corpus/raw/fiore")        # relative path: works when run from the project root
+destination = folder / (safe_filename(title) + ".html")
 
-if destinazione.exists():
-    print(f"Già presente: {destinazione}")
+if destination.exists():
+    print(f"Already present: {destination}")
 else:
-    print(f"Salvato: {scarica_pagina(titolo, cartella)}")
+    print(f"Saved: {download_page(title, folder)}")

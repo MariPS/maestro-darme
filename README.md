@@ -1,86 +1,89 @@
 # Maestro d'Arme
 
-Assistente per interrogare in linguaggio naturale i **trattati storici di scherma
-europea** (HEMA), con risposte ancorate al testo originale e citazioni al foglio
-del manoscritto.
+*English · [Italiano](README.it.md)*
 
-> *"Come si para un fendente secondo Fiore dei Liberi?"* → il passaggio esatto del
-> trattato, in italiano del Quattrocento, con traduzione e riferimento al foglio
-> (es. *Fior di Battaglia, MS Ludwig XV 13, f. 23r*).
+An assistant for asking natural-language questions about **historical European
+fencing treatises** (HEMA), with answers grounded in the original text and
+citations down to the manuscript folio.
 
-**Stato**: in sviluppo. È pronto il modulo di acquisizione dei testi; il resto
-della pipeline è descritto nella [roadmap](#roadmap).
+> *"How do you parry a downward blow according to Fiore dei Liberi?"* → the exact
+> passage of the treatise, in 15th-century Italian, with a translation and the
+> folio reference (e.g. *Fior di Battaglia, MS Ludwig XV 13, f. 23r*).
+
+**Status**: work in progress. The text acquisition module is ready; the rest of the
+pipeline is described in the [roadmap](#roadmap).
 
 ---
 
-## Il problema
+## The problem
 
-I trattati di scherma storica sono un dominio difficile, per le persone e per i
-modelli linguistici generici:
+Historical fencing treatises are a hard domain, for people and for general-purpose
+language models alike:
 
-- **lingua arcaica e specialistica**: italiano del XV secolo, alto tedesco antico,
-  latino, con grafie che cambiano anche all'interno dello stesso testo;
-- **molte opere autonome**: ogni maestro ha il suo lessico e il suo sistema di guardie;
-- **interpretazione contestata**: c'è il testo originale, e ci sono le
-  interpretazioni moderne, che vanno tenute distinte.
+- **archaic, specialised language**: 15th-century Italian, Early New High German,
+  Latin, with spellings that vary even within the same text;
+- **many independent works**: each master has his own vocabulary and his own system
+  of guards;
+- **contested interpretation**: there is the original text, and there are modern
+  interpretations, and the two must be kept apart.
 
-Un LLM generico risponde in modo plausibile ma senza fonti verificabili, e tende a
-mescolare tradizioni diverse. L'obiettivo di questo progetto è il contrario: **il
-testo originale è la fonte di verità**, e ogni risposta deve poter essere
-ricondotta a un passaggio preciso.
+A general-purpose LLM gives plausible answers without verifiable sources, and tends
+to blend different traditions together. This project aims for the opposite: **the
+original text is the source of truth**, and every answer must be traceable to a
+specific passage.
 
-## Architettura prevista
+## Planned architecture
 
-Il sistema è pensato su due livelli:
+The system is designed in two layers:
 
-1. **Biblioteca (RAG sui trattati)**: i testi vengono suddivisi in passaggi,
-   indicizzati con una ricerca ibrida (semantica multilingue + lessicale BM25) e
-   restituiti con la loro citazione. È la fonte di verità.
-2. **Wiki di sintesi**: le sintesi di valore (per esempio il confronto fra due
-   guardie) vengono salvate come pagine Markdown che citano i passaggi originali,
-   con controlli periodici che le citazioni siano ancora valide.
+1. **Library (RAG over the treatises)**: the texts are split into passages, indexed
+   with hybrid search (multilingual semantic search + BM25 lexical search) and
+   returned together with their citation. This is the source of truth.
+2. **Synthesis wiki**: valuable syntheses (for example, a comparison between two
+   guards) are saved as Markdown pages that cite the original passages, with
+   periodic checks that those citations are still valid.
 
-Tutto gira in locale, con modelli open source.
+Everything runs locally, with open-source models.
 
-## Cosa funziona oggi: acquisizione dei testi
+## What works today: text acquisition
 
-I testi provengono da [Wiktenauer](https://wiktenauer.com), la principale
-biblioteca digitale di trattati HEMA. Il modulo `maestro.acquire.wiktenauer`:
+The texts come from [Wiktenauer](https://wiktenauer.com), the main digital library
+of HEMA treatises. The `maestro.acquire.wiktenauer` module:
 
-- usa la **MediaWiki API** (`action=parse`) invece di fare scraping delle pagine:
-  restituisce solo il contenuto, senza menu e script;
-- registra la **revisione** della pagina scaricata, così è sempre possibile sapere
-  quale versione del testo è stata usata;
-- invia **al massimo una richiesta al secondo**, con uno User-Agent che identifica
-  il progetto: il sito è gestito da volontari;
-- **riprova** fino a 3 volte in caso di errori di rete o del server, con attese
-  crescenti; non ritenta gli errori dell'API (es. pagina inesistente), perché
-  riprovare non cambierebbe il risultato.
+- uses the **MediaWiki API** (`action=parse`) instead of scraping the pages: it
+  returns only the content, without menus and scripts;
+- records the **revision** of each downloaded page, so it is always possible to know
+  which version of the text was used;
+- sends **at most one request per second**, with a User-Agent that identifies the
+  project: the site is run by volunteers;
+- **retries** up to 3 times on network or server errors, with increasing waits; it
+  does not retry API errors (e.g. a page that does not exist), because retrying
+  would not change the result.
 
-## Installazione
+## Installation
 
-Requisiti: Python 3.11 o successivo.
+Requirements: Python 3.11 or later.
 
 ```bash
-git clone <url-del-repository>
+git clone https://github.com/MariPS/maestro-darme.git
 cd maestro-darme
 conda create -n maestro-darme python=3.11 -y
 conda activate maestro-darme
 pip install -e .
 ```
 
-## Uso
+## Usage
 
-Dalla cartella principale del progetto:
+From the project root:
 
 ```bash
 python scripts/01_acquire.py
 ```
 
-Lo script scarica la pagina di Fiore dei Liberi (*Fior di Battaglia*, ~1410) in
-`corpus/raw/fiore/`. Se il file esiste già, non lo riscarica.
+The script downloads the page for Fiore dei Liberi (*Fior di Battaglia*, c. 1410)
+into `corpus/raw/fiore/`. If the file is already there, it is not downloaded again.
 
-Accanto all'HTML viene salvato un file `.meta.json` con la provenienza:
+Next to the HTML, a `.meta.json` file records the provenance:
 
 ```json
 {
@@ -91,38 +94,38 @@ Accanto all'HTML viene salvato un file `.meta.json` con la provenienza:
 }
 ```
 
-## Struttura del repository
+## Repository layout
 
 ```
 maestro-darme/
 ├── pyproject.toml
 ├── src/maestro/
 │   └── acquire/
-│       └── wiktenauer.py     # client per la MediaWiki API di Wiktenauer
+│       └── wiktenauer.py     # client for the Wiktenauer MediaWiki API
 ├── scripts/
-│   └── 01_acquire.py         # scarica i trattati in corpus/raw/
-└── corpus/                   # generato dagli script, non versionato
+│   └── 01_acquire.py         # downloads the treatises into corpus/raw/
+└── corpus/                   # generated by the scripts, not versioned
 ```
 
 ## Roadmap
 
-- [x] Acquisizione dei testi da Wiktenauer, con provenienza e revisione
-- [ ] Parsing delle trascrizioni in passaggi strutturati (testo originale, traduzione, foglio)
-- [ ] Indicizzazione con embedding multilingue
-- [ ] Ricerca ibrida semantica + BM25, con normalizzazione dell'ortografia antica
-- [ ] Valutazione su un insieme di domande con fonti attese (recall@k, MRR)
-- [ ] Risposte generate da un LLM locale, con verifica automatica delle citazioni
-- [ ] Wiki di sintesi con controlli di manutenzione
-- [ ] Interfaccia web
+- [x] Text acquisition from Wiktenauer, with provenance and revision tracking
+- [ ] Parsing of the transcriptions into structured passages (original text, translation, folio)
+- [ ] Indexing with multilingual embeddings
+- [ ] Hybrid semantic + BM25 search, with normalisation of historical spelling
+- [ ] Evaluation on a set of questions with expected sources (recall@k, MRR)
+- [ ] Answers generated by a local LLM, with automatic citation checking
+- [ ] Synthesis wiki with maintenance checks
+- [ ] Web interface
 
-Primo trattato: *Fior di Battaglia* di Fiore dei Liberi (manoscritto Getty).
-Previsti in seguito: Joachim Meyer (1570) e lo Zettel di Liechtenauer con le sue glosse.
+First treatise: *Fior di Battaglia* by Fiore dei Liberi (Getty manuscript).
+Planned next: Joachim Meyer (1570) and Liechtenauer's Zettel with its glosses.
 
-## Fonti e licenze dei testi
+## Text sources and licences
 
-I trattati originali sono di pubblico dominio. Le **trascrizioni** e le
-**traduzioni** sono di [Wiktenauer](https://wiktenauer.com) e dei loro autori, e
-sono generalmente distribuite con licenza **CC-BY-SA 4.0**.
+The original treatises are in the public domain. The **transcriptions** and
+**translations** belong to [Wiktenauer](https://wiktenauer.com) and their authors,
+and are generally distributed under the **CC-BY-SA 4.0** licence.
 
-Il corpus **non è incluso** in questo repository: si scarica con lo script, e ogni
-file conserva URL e revisione della fonte.
+The corpus is **not included** in this repository: it is downloaded by the script,
+and every file keeps the URL and revision of its source.
