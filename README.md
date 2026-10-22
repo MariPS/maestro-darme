@@ -100,8 +100,10 @@ Next to the HTML, a `.meta.json` file records the provenance:
 maestro-darme/
 ├── pyproject.toml
 ├── src/maestro/
-│   └── acquire/
-│       └── wiktenauer.py     # client for the Wiktenauer MediaWiki API
+│   ├── acquire/
+│   │   └── wiktenauer.py     # client for the Wiktenauer MediaWiki API
+│   └── parse/
+│       └── schemas.py        # TreatisePassage: the validated shape of a passage
 ├── scripts/
 │   ├── 01_acquire.py         # downloads the treatises into corpus/raw/
 │   └── explore_html.py       # summarises the tables of a downloaded page

@@ -126,10 +126,48 @@ The same cell shows two more things the parser will have to handle:
 - Wiktenauer inserts **footnote markers** (`[132]`) inside the text. They are not part
   of the manuscript and must be removed.
 
+## 5. The shape of a passage
+
+Before writing any parser, I defined what a passage *is*: a Pydantic model,
+`TreatisePassage` (`src/maestro/parse/schemas.py`). Every parser, for every treatise,
+will have to produce exactly this shape, and the model checks the data as soon as a
+passage is created.
+
+**Every field answers a need.** Identity (`passage_id`, `treatise`, `author`, `year`) for
+citations; position (`section`, `folio`); content (`text`, `language`,
+`translation_en`, `image_urls`); provenance (`source_url`, `source_license`,
+`source_revision`, taken from the `.meta.json`). More fields might be added later when needed.
+
+**Stable identifiers.** `passage_id` is built from the manuscript's own reference:
+`fiore_getty:09r-t` is folio 9 recto, figure "t". A running counter (1, 2, 3...)
+would be simpler, but it shifts whenever the parser changes: drop one passage and
+every later id moves by one. Since these ids will be cited by other files, they must
+depend on *what* a passage is, not on the order in which it was found.
+
+**Required or optional?** The rule: a field is optional if there is a real passage,
+in this or another treatise, where that information is missing.
+
+- `text` is required: a passage without text is not a passage.
+- `translation_en` is optional: it is missing in 2 of the 27 transcription tables.
+- `folio` is optional. Of the 352 Getty cells with text, **306** contain a marker such
+  as `[9r-t]` and **46** (about one in eight) do not: a marker appears at the start of
+  a folio, and the paragraphs that continue it do not repeat it. The parser will try
+  to recover the folio in other ways (the file name of the Getty illustration,
+  `MS_Ludwig_XV_13_09r-a.jpg`, or the folio of the previous passage), but the schema
+  describes what *can* happen, not what I hope will happen: with a required `folio`,
+  the first passage without one would stop everything with a validation error. Other
+  treatises are not even cited by folio: Liechtenauer's Zettel is cited by verse,
+  printed books often by chapter.
+- Missing values are `None`, not an empty string: `None` says explicitly "unknown",
+  while `""` looks like a real value.
+
+**Storage: JSONL**, one passage per line. `model_dump_json()` writes a line;
+`model_validate_json()` reads it back and *re-validates* it, so a corrupted or
+hand-edited file is caught when it is loaded, not when the data is used.
+
 ## Next steps
 
-1. Define the shape of a passage (original text, translation, folio, provenance) as
-   a validated data model.
-2. Write the parser for the Getty text, applying the two rules above and the text
-   cleaning plan: rebuild the grid, find columns by header, extract with
-   `get_text("")`, read the folio from `[9r-t]`, remove footnote markers.
+1. Write the parser for the Getty text, producing `TreatisePassage` objects and
+   saving them as JSONL: rebuild the grid, find columns by header, extract with
+   `get_text("")`, read the folio from `[9r-t]` (or recover it when missing), remove
+   footnote markers.

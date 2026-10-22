@@ -6,6 +6,7 @@ dependencies=[
     "requests",         # download from Wiktenauer
     "beautifulsoup4",   # navigate the HTML
     "lxml",             # fast HTML parser used by BeautifulSoup
+    "pydantic",         # data schema (validation of passages)
 ]
 
 [build-system]

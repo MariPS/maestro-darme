@@ -99,8 +99,10 @@ Accanto all'HTML viene salvato un file `.meta.json` con la provenienza:
 maestro-darme/
 ├── pyproject.toml
 ├── src/maestro/
-│   └── acquire/
-│       └── wiktenauer.py     # client per la MediaWiki API di Wiktenauer
+│   ├── acquire/
+│   │   └── wiktenauer.py     # client per la MediaWiki API di Wiktenauer
+│   └── parse/
+│       └── schemas.py        # TreatisePassage: la forma validata di un passaggio
 ├── scripts/
 │   ├── 01_acquire.py         # scarica i trattati in corpus/raw/
 │   └── explore_html.py       # riassume le tabelle di una pagina scaricata
