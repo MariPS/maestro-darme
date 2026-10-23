@@ -1,17 +1,27 @@
-# Maestro d'Arme
+<h1 align="center">
+  <img src="docs/images/banner.jpg" alt="Maestro d'Arme" width="100%">
+</h1>
 
-*[English](README.md) · Italiano*
+<p align="center"><i><a href="README.md">English</a> · Italiano</i></p>
 
-Assistente per interrogare in linguaggio naturale i **trattati storici di scherma
-europea** (HEMA), con risposte ancorate al testo originale e citazioni al foglio
-del manoscritto.
+**Maestro d'Arme** è un assistente per interrogare in linguaggio naturale i
+**trattati storici di scherma europea** (HEMA), di maestri e tradizioni diverse, con
+risposte ancorate ai testi originali e citazioni al foglio del manoscritto.
 
 > *"Come si para un fendente secondo Fiore dei Liberi?"* → il passaggio esatto del
 > trattato, in italiano del Quattrocento, con traduzione e riferimento al foglio
 > (es. *Fior di Battaglia, MS Ludwig XV 13, f. 23r*).
+>
+> *"Che differenza c'è fra la posta di donna di Fiore e il vom Tag di Liechtenauer?"*
+> → i passaggi dei due maestri affiancati, ciascuno con la sua citazione, senza
+> fondere le due tradizioni in una sola.
+
+I trattati si aggiungono uno alla volta: il primo è *Fior di Battaglia* di Fiore dei
+Liberi (tradizione italiana, ~1410); seguiranno lo Zettel di Liechtenauer con le sue
+glosse e la *Gründtliche Beschreibung* di Joachim Meyer (tradizione tedesca).
 
 **Stato**: in sviluppo. È pronto il modulo di acquisizione dei testi ed è in
-costruzione il parser per il manoscritto Getty; il resto della pipeline è descritto
+costruzione il parser per il primo trattato; il resto della pipeline è descritto
 nella [roadmap](#roadmap).
 
 ---
@@ -124,7 +134,8 @@ maestro-darme/
 │   │   └── mini_fiore.html   # una miniatura della pagina vera, con tutte le sue trappole
 │   └── test_parse_fiore.py
 ├── docs/
-│   └── DEVLOG.md             # scoperte e scelte di progetto (in inglese)
+│   ├── DEVLOG.md             # scoperte e scelte di progetto (in inglese)
+│   └── images/               # banner, logo e immagine di anteprima
 └── corpus/                   # generato dagli script, non versionato
 ```
 
@@ -160,3 +171,20 @@ sono generalmente distribuite con licenza **CC-BY-SA 4.0**.
 
 Il corpus **non è incluso** in questo repository: si scarica con lo script, e ogni
 file conserva URL e revisione della fonte.
+
+## Immagini
+
+Il banner, il logo (`docs/images/logo.png`) e l'immagine di anteprima usano il
+*Segno* di Fiore dei Liberi, *Fior di Battaglia*, Los Angeles, J. Paul Getty Museum,
+MS Ludwig XV 13, f. 32r: il maestro con le sette spade e i quattro animali delle
+virtù (avvedutezza, prestezza, ardimento, fortezza), scelto come emblema del maestro
+d'arme in generale, di qualunque tradizione. Immagine digitale per gentile concessione dell'Open Content Program del
+Getty, tramite [Wiktenauer](https://wiktenauer.com).
+
+Il motto sotto il titolo, *ex verbis magistrorum*, in latino significa "dalle parole
+dei maestri": è il principio del progetto, in cui ogni risposta nasce dai testi dei
+maestri stessi.
+
+Il titolo è scritto con il carattere Hershey *Gothic Italian*. I caratteri Hershey
+sono stati creati da A. V. Hershey presso lo U. S. National Bureau of Standards; il
+formato dei dati è stato creato da James Hurt, Cognition, Inc.
