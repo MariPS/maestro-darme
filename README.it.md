@@ -10,8 +10,9 @@ del manoscritto.
 > trattato, in italiano del Quattrocento, con traduzione e riferimento al foglio
 > (es. *Fior di Battaglia, MS Ludwig XV 13, f. 23r*).
 
-**Stato**: in sviluppo. È pronto il modulo di acquisizione dei testi; il resto
-della pipeline è descritto nella [roadmap](#roadmap).
+**Stato**: in sviluppo. È pronto il modulo di acquisizione dei testi ed è in
+costruzione il parser per il manoscritto Getty; il resto della pipeline è descritto
+nella [roadmap](#roadmap).
 
 ---
 
@@ -71,6 +72,16 @@ conda activate maestro-darme
 pip install -e .
 ```
 
+Per lavorare sul codice, installa anche gli strumenti di sviluppo e lancia i test:
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+I test girano su un piccolo file HTML in `tests/fixtures/`: non servono né internet
+né il corpus scaricato.
+
 ## Uso
 
 Dalla cartella principale del progetto:
@@ -99,13 +110,19 @@ Accanto all'HTML viene salvato un file `.meta.json` con la provenienza:
 maestro-darme/
 ├── pyproject.toml
 ├── src/maestro/
+│   ├── config.py             # percorsi e impostazioni usati da più moduli
 │   ├── acquire/
 │   │   └── wiktenauer.py     # client per la MediaWiki API di Wiktenauer
 │   └── parse/
-│       └── schemas.py        # TreatisePassage: la forma validata di un passaggio
+│       ├── schemas.py        # TreatisePassage: la forma validata di un passaggio
+│       └── fiore.py          # parser per Fiore dei Liberi (in costruzione)
 ├── scripts/
 │   ├── 01_acquire.py         # scarica i trattati in corpus/raw/
 │   └── explore_html.py       # riassume le tabelle di una pagina scaricata
+├── tests/
+│   ├── fixtures/
+│   │   └── mini_fiore.html   # una miniatura della pagina vera, con tutte le sue trappole
+│   └── test_parse_fiore.py
 ├── docs/
 │   └── DEVLOG.md             # scoperte e scelte di progetto (in inglese)
 └── corpus/                   # generato dagli script, non versionato

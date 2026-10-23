@@ -4,7 +4,7 @@ Findings and design decisions made while building the project, grouped by topic.
 The code shows *what* the project does; this log records *why*, and what turned out
 to be different from what I expected.
 
-*Last updated: 2026-10-21*
+*Last updated: 2026-10-23*
 
 ---
 
@@ -165,9 +165,60 @@ in this or another treatise, where that information is missing.
 `model_validate_json()` reads it back and *re-validates* it, so a corrupted or
 hand-edited file is caught when it is loaded, not when the data is used.
 
+## 6. Shared configuration
+
+`src/maestro/config.py` was created only when a second module needed the same
+information as the downloader. The parser has to know where the pages were saved,
+and the site's base address: image paths in the HTML are relative
+(`/images/thumb/...`) and become full URLs only with `https://wiktenauer.com`.
+Settings used by a single module (the API address, the User-Agent, the rate limit)
+stay in that module.
+
+Paths are computed from the location of `config.py` itself
+(`Path(__file__).resolve().parents[2]` is the project root), not from the current
+folder. With the relative path used before (`corpus/raw/fiore`), launching the
+download script from inside `scripts/` would have looked for, and saved, the files
+in `scripts/corpus/...`.
+
+## 7. Rebuilding the table grid
+
+`rebuild_grid()` (`src/maestro/parse/fiore.py`) turns an HTML table into a full
+matrix, so that "column 5" means column 5 in every row. It keeps a dictionary
+`(row, column) -> cell`: for each cell of the HTML it looks for the first free column
+in its row, then "stamps" the cell on every position it covers (`rowspan` rows ×
+`colspan` columns). The same cell object therefore appears in every row it covers,
+which will be useful to group the rows that share a translation.
+
+On the real page, table 1 becomes a 44 × 8 grid with no empty positions, and row 2,
+column 5 holds the Getty text (`¶ Anchora volse savere tempere…`) that the raw HTML
+had put in cell 4.
+
+**Testing on a miniature.** The real page is 1.8 MB and is not in the repository, so
+the parser is tested on `tests/fixtures/mini_fiore.html`: a 5-row table that
+reproduces every trap found so far (rowspan, two illustration columns, the
+translation in column 2, a decorated initial, footnotes, a folio marker, a play
+missing from the Getty, an illustration from another manuscript). The grid the
+fixture should produce is drawn at the top of `tests/test_parse_fiore.py`.
+
+**What the "first free column" step does**, checked by removing it:
+
+- rows below a rowspan cell are corrupted: their cells start again from column 0 and
+  overwrite the positions covered from above (`grid[2][2]` becomes an empty cell
+  instead of the translation), while columns 4-7 of that row stay empty (`None`);
+- rows that no rowspan reaches are unaffected (row 3 keeps its cells).
+
+The tests are split accordingly, one behaviour per test, including a *control* test
+on row 3 that passes even without the fix. A test function stops at its first
+failing assertion, so two checks in the same function would hide each other.
+
 ## Next steps
 
-1. Write the parser for the Getty text, producing `TreatisePassage` objects and
-   saving them as JSONL: rebuild the grid, find columns by header, extract with
-   `get_text("")`, read the folio from `[9r-t]` (or recover it when missing), remove
-   footnote markers.
+The parser for the Getty text, continued:
+
+1. Find the columns by their header: Getty text, Getty translation, illustrations.
+2. Extract clean text from a cell: `get_text("")`, line breaks for `<br>` and `<p>`,
+   footnote markers removed, folio read from markers such as `[9r-t]`.
+3. Group rows into passages (rows that share a translation cell), collect the
+   illustrations, recover missing folios, build stable ids.
+4. A `parse()` function and a script that writes
+   `corpus/processed/fiore_getty.jsonl`, with summary statistics to check the result.

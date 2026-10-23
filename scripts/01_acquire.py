@@ -1,8 +1,9 @@
 from maestro.acquire.wiktenauer import download_page, safe_filename
+from maestro import config
 from pathlib import Path
 
 title = "Fiore de'i Liberi"
-folder = Path("corpus/raw/fiore")        # relative path: works when run from the project root
+folder = Path(config.CORPUS_RAW / "fiore")
 destination = folder / (safe_filename(title) + ".html")
 
 if destination.exists():

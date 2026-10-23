@@ -13,8 +13,9 @@ import json
 import re
 from pathlib import Path
 import requests
+from maestro import config
 
-BASE = "https://wiktenauer.com"
+
 API = "https://wiktenauer.com/api.php"
 USER_AGENT = "MaestroDArme/0.1 (HEMA treatises project)"
 SECONDS_BETWEEN_REQUESTS = 1.0
@@ -71,7 +72,7 @@ def download_page(title: str, folder: Path) -> Path:
     meta = {
         "title": page["title"],
         "revid": page["revid"],
-        "url": f"{BASE}/wiki/{page['title'].replace(' ', '_')}",
+        "url": f"{config.WIKTENAUER_BASE}/wiki/{page['title'].replace(' ', '_')}",
         "downloaded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
     base.with_suffix(".meta.json").write_text(
@@ -86,3 +87,8 @@ def _throttle():
     if elapsed < SECONDS_BETWEEN_REQUESTS:
         time.sleep(SECONDS_BETWEEN_REQUESTS - elapsed)  # wait only for the difference
     _last_request_time = time.time()              # record the time of this request
+
+
+def read_meta(html_path: Path) -> dict:
+    """Read the .meta.json saved next to a downloaded page."""
+    return json.loads(Path(html_path).with_suffix(".meta.json").read_text(encoding="utf-8"))
