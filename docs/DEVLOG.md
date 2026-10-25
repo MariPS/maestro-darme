@@ -4,7 +4,7 @@ Findings and design decisions made while building the project, grouped by topic.
 The code shows *what* the project does; this log records *why*, and what turned out
 to be different from what I expected.
 
-*Last updated: 2026-10-23*
+*Last updated: 2026-10-25*
 
 ---
 
@@ -211,14 +211,83 @@ The tests are split accordingly, one behaviour per test, including a *control* t
 on row 3 that passes even without the fix. A test function stops at its first
 failing assertion, so two checks in the same function would hide each other.
 
+## 8. Finding the columns by their header
+
+`find_columns()` reads the header row of the grid and returns where the three things
+the parser needs are:
+
+| what | recognised by its header |
+|---|---|
+| Getty text | contains `getty version` |
+| translation "from the Getty" | contains `translation` **and** `getty` |
+| illustrations | contains `illustration` (one or two columns) |
+
+The order of the checks matters: "Getty Version" also contains "getty", so it must be
+recognised as the text column *before* any rule about translations is tried.
+
+**The rule was checked on the real page, not only on the test fixture.** A small
+script ran it on all 27 transcription tables and counted the results: the Getty text
+was in column 5 in 27 tables, as expected, but the translation was missing in **3**
+tables, while the exploration (section 3) had found only 2 without it. Printing the
+headers of those three tables showed two different situations:
+
+- **Latin Preface** and **Second Italian Preface**: the translation is made from the
+  Pisani Dossi manuscript ("Translation (from the Pisani Dossi)"), and the Getty does
+  not contain these prefaces. Here "no Getty translation" is the *right* answer.
+- **Seven Swords**: the Getty translation is there, but its header is
+  *"PD by Michael Chidester Getty by Colin Hatcher"*, without the word
+  "Translation". Here the answer was *wrong*: the parser would have silently lost the
+  translations of a whole section.
+
+The fix keeps the precise rule as the main one and adds a **fallback**: only when no
+column matches it, the first other column whose header mentions the Getty is taken
+as the translation. A single, looser rule ("contains getty") would have given the same
+numbers, but it would have hidden the exception: with an explicit fallback, the code
+says that an exception exists and why.
+
+After the fix the counts match the exploration: translation in column 2 in 24 tables,
+in column 1 in 1, absent in 2.
+
+Two tests pin this down: one for the Seven Swords header, and one checking that a
+translation made from another manuscript is *not* taken as the Getty one, so that the
+fallback cannot become too generous in the future.
+
+> The fixture tests say whether the function does what I meant; the check on the
+> real data says whether what I meant is right. Only the second one found this bug.
+
+## 9. Cleaning the text of a cell
+
+`cell_text()` turns a table cell into two things: the **clean text**, and the
+**manuscript reference** found in it, if any (`[9r-t]` becomes `"09r-t"`).
+
+**What is left between square brackets, and why it stays.**
+
+| what | where | example | meaning | decision |
+|---|---|---|---|---|
+| `[!]` (26 times) | Getty text | `scarmidori[!]` | *sic*: the manuscript really says this, even if it looks wrong | **keep** |
+| a letter in brackets | Getty text | `m[e]zo`, `que[ll]` | a letter the 15th-century scribe left out, supplied by the modern transcriber | **keep** |
+| words in brackets | translations | `the Fourth [Dagger Remedy] Master` | words added by the translator to make the meaning clear | **keep** |
+| a number at the start | translations | `[10] With the grips…` | the translator's numbering of the passages | **remove** |
+| a number inside the text | translations | `[1] strength, [2] speed, [3] knowledge` | part of the content | **keep** |
+
+The first two are the transcriber's *critical apparatus*: they tell the reader what
+the manuscript says and what has been reconstructed, so the text that the system shows
+and quotes keeps them.
+
+The numbers looked like noise at first, but where they appear changes everything. At
+the start of a translation they only number the passages, which already have their
+own stable id, so they go. Inside the text they are content: the eight qualities a
+grappler needs are listed as `[1]`...`[8]`, and `[3]` appears twice to tie an
+explanation ("by which I mean...") to its item. Hence the rule: **a number in brackets
+is removed only when it opens the text**.
+
+Each decision is pinned down by a test, including the "keep" ones.
+
 ## Next steps
 
 The parser for the Getty text, continued:
 
-1. Find the columns by their header: Getty text, Getty translation, illustrations.
-2. Extract clean text from a cell: `get_text("")`, line breaks for `<br>` and `<p>`,
-   footnote markers removed, folio read from markers such as `[9r-t]`.
-3. Group rows into passages (rows that share a translation cell), collect the
+1. Group rows into passages (rows that share a translation cell), collect the
    illustrations, recover missing folios, build stable ids.
-4. A `parse()` function and a script that writes
+2. A `parse()` function and a script that writes
    `corpus/processed/fiore_getty.jsonl`, with summary statistics to check the result.
