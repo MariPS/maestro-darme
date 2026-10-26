@@ -20,9 +20,10 @@ I trattati si aggiungono uno alla volta: il primo è *Fior di Battaglia* di Fior
 Liberi (tradizione italiana, ~1410); seguiranno lo Zettel di Liechtenauer con le sue
 glosse e la *Gründtliche Beschreibung* di Joachim Meyer (tradizione tedesca).
 
-**Stato**: in sviluppo. È pronto il modulo di acquisizione dei testi ed è in
-costruzione il parser per il primo trattato; il resto della pipeline è descritto
-nella [roadmap](#roadmap).
+**Stato**: in sviluppo. Sono pronti l'acquisizione dei testi e il parser per il primo
+trattato: *Fior di Battaglia* diventa 350 passaggi strutturati. Seguiranno
+l'indicizzazione e la ricerca; il resto della pipeline è descritto nella
+[roadmap](#roadmap).
 
 ---
 
@@ -55,7 +56,9 @@ Il sistema è pensato su due livelli:
 
 Tutto gira in locale, con modelli open source.
 
-## Cosa funziona oggi: acquisizione dei testi
+## Cosa funziona oggi
+
+### Acquisizione dei testi
 
 I testi provengono da [Wiktenauer](https://wiktenauer.com), la principale
 biblioteca digitale di trattati HEMA. Il modulo `maestro.acquire.wiktenauer`:
@@ -69,6 +72,25 @@ biblioteca digitale di trattati HEMA. Il modulo `maestro.acquire.wiktenauer`:
 - **riprova** fino a 3 volte in caso di errori di rete o del server, con attese
   crescenti; non ritenta gli errori dell'API (es. pagina inesistente), perché
   riprovare non cambierebbe il risultato.
+
+### Parsing
+
+Su Wiktenauer *Fior di Battaglia* è un insieme di tabelle che affiancano più
+manoscritti. Il modulo `maestro.parse.fiore` ne estrae il **manoscritto Getty**
+(MS Ludwig XV 13), un passaggio validato per ogni gioco:
+
+- ricostruisce ogni tabella come una griglia completa, perché le celle che coprono
+  più righe (`rowspan`) spostano le altre nell'HTML;
+- trova le colonne per nome dell'intestazione e non per posizione, che cambia da
+  tabella a tabella;
+- pulisce il testo conservando i segni editoriali del trascrittore (`[!]` per *sic*,
+  `m[e]zo` per una lettera integrata dall'editore);
+- assegna a ogni passaggio il suo foglio e un identificativo stabile basato sul
+  riferimento del manoscritto stesso, come `fiore_getty:23r-a` (foglio 23 recto,
+  figura a).
+
+Il ragionamento dietro ogni scelta, e ciò che i dati veri hanno rivelato lungo la
+strada, è nel [diario di sviluppo](docs/DEVLOG.md).
 
 ## Installazione
 
@@ -114,6 +136,35 @@ Accanto all'HTML viene salvato un file `.meta.json` con la provenienza:
 }
 ```
 
+Poi analizzala:
+
+```bash
+python scripts/02_parse.py
+```
+
+I passaggi vengono salvati in `corpus/processed/fiore_getty.jsonl`, uno per riga, e lo
+script stampa un riepilogo per controllare il risultato (passaggi, fogli, traduzioni,
+illustrazioni, passaggi per sezione). Un passaggio è fatto così (testi accorciati):
+
+```json
+{
+  "passage_id": "fiore_getty:23r-a",
+  "treatise_id": "fiore_getty",
+  "treatise_title": "Fior di Battaglia (MS Ludwig XV 13)",
+  "author": "Fiore de'i Liberi",
+  "year_circa": 1410,
+  "section": "Sword in Two Hands, Introduction",
+  "folio": "23r",
+  "text": "· Colpi Fendenti · ¶ Noii semo fendenti & in l'arte façemo questione d...",
+  "language": "ita-arc",
+  "translation_en": "Downward Blows We are downward blows and we dispute By cleav...",
+  "image_urls": ["https://wiktenauer.com/images/thumb/e/e1/MS_Ludwig_XV_13_23r..."],
+  "source_url": "https://wiktenauer.com/wiki/Fiore_de'i_Liberi",
+  "source_license": "CC-BY-SA-4.0",
+  "source_revision": 163576
+}
+```
+
 ## Struttura del repository
 
 ```
@@ -125,13 +176,15 @@ maestro-darme/
 │   │   └── wiktenauer.py     # client per la MediaWiki API di Wiktenauer
 │   └── parse/
 │       ├── schemas.py        # TreatisePassage: la forma validata di un passaggio
-│       └── fiore.py          # parser per Fiore dei Liberi (in costruzione)
+│       └── fiore.py          # parser per Fiore dei Liberi (manoscritto Getty)
 ├── scripts/
 │   ├── 01_acquire.py         # scarica i trattati in corpus/raw/
+│   ├── 02_parse.py           # li analizza in corpus/processed/*.jsonl
 │   └── explore_html.py       # riassume le tabelle di una pagina scaricata
 ├── tests/
 │   ├── fixtures/
-│   │   └── mini_fiore.html   # una miniatura della pagina vera, con tutte le sue trappole
+│   │   ├── mini_fiore.html       # una miniatura della pagina vera, con tutte le sue trappole
+│   │   └── mini_fiore.meta.json  # il suo file di provenienza
 │   └── test_parse_fiore.py
 ├── docs/
 │   ├── DEVLOG.md             # scoperte e scelte di progetto (in inglese)
@@ -152,7 +205,7 @@ Cosa ha rivelato questa esplorazione, e perché determina il parser, è descritt
 ## Roadmap
 
 - [x] Acquisizione dei testi da Wiktenauer, con provenienza e revisione
-- [ ] Parsing delle trascrizioni in passaggi strutturati (testo originale, traduzione, foglio)
+- [x] Parsing delle trascrizioni in passaggi strutturati (testo originale, traduzione, foglio)
 - [ ] Indicizzazione con embedding multilingue
 - [ ] Ricerca ibrida semantica + BM25, con normalizzazione dell'ortografia antica
 - [ ] Valutazione su un insieme di domande con fonti attese (recall@k, MRR)

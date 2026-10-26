@@ -19,7 +19,7 @@ daga...") is cell 2.1 in the HTML, but sits in column 5 of the grid.
 """
 from pathlib import Path
 from bs4 import BeautifulSoup
-from maestro.parse.fiore import rebuild_grid, find_columns, cell_text, normalize_folio, section_title, group_rows, passage_content
+from maestro.parse.fiore import *
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mini_fiore.html"
@@ -214,3 +214,42 @@ def test_getty_illustration_is_moved_first():
     grid = rebuild_grid(t)
     urls = passage_content(grid, [1], find_columns(grid[0]))["illustrations"]
     assert "MS_Ludwig" in urls[0] and "MS_Latin" in urls[1]
+
+
+def test_make_reference():
+    assert make_reference("9r", "t") == "09r-t"
+    assert make_reference("1r") == "01r"
+
+
+def test_reference_from_a_getty_image():
+    urls = ["https://wiktenauer.com/images/thumb/c/cd/MS_Ludwig_XV_13_09v-b.jpg/400px-MS_Ludwig_XV_13_09v-b.jpg"]
+    assert reference_from_images(urls) == "09v-b"
+
+
+def test_images_of_other_manuscripts_give_no_reference():
+    # MS_Latin_11269 is the Paris manuscript: its folio numbers are not the Getty's
+    urls = ["https://wiktenauer.com/images/thumb/e/ef/MS_Latin_11269_31v-c.png/400px-MS_Latin_11269_31v-c.png"]
+    assert reference_from_images(urls) is None
+
+
+def test_unique_id_adds_a_suffix_to_repeats():
+    used = {}
+    ids = [unique_id("fiore_getty:01r", used) for _ in range(3)]
+    assert ids == ["fiore_getty:01r", "fiore_getty:01r.2", "fiore_getty:01r.3"]
+    assert unique_id("fiore_getty:01v", used) == "fiore_getty:01v"   # a different base starts again
+
+
+def test_parse_the_miniature_page():
+    passages = parse(FIXTURE)
+    # row 3 is "[No text]": only two passages
+    assert [p.passage_id for p in passages] == ["fiore_getty:09r-t", "fiore_getty:09v-b"]
+
+    first, second = passages
+    assert first.folio == "09r"
+    assert first.section == "Dagger, Introduction"
+    assert first.source_revision == 999
+
+    # row 4 has no marker: its folio comes from the Getty illustration (09v),
+    # not from the Paris one in the same row (31v)
+    assert second.folio == "09v"
+    assert second.image_urls[0].endswith("MS_Ludwig_XV_13_09v-b.jpg")

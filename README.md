@@ -21,9 +21,9 @@ The treatises are added one at a time: *Fior di Battaglia* by Fiore dei Liberi
 (Italian tradition, c. 1410) is the first; Liechtenauer's Zettel with its glosses and
 Joachim Meyer's *Gründtliche Beschreibung* (German tradition) come next.
 
-**Status**: work in progress. The text acquisition module is ready, and the parser
-for the first treatise is being built; the rest of the pipeline is described in the
-[roadmap](#roadmap).
+**Status**: work in progress. Text acquisition and the parser for the first treatise
+are ready: *Fior di Battaglia* is turned into 350 structured passages. Indexing and
+search come next; the rest of the pipeline is described in the [roadmap](#roadmap).
 
 ---
 
@@ -57,7 +57,9 @@ The system is designed in two layers:
 
 Everything runs locally, with open-source models.
 
-## What works today: text acquisition
+## What works today
+
+### Text acquisition
 
 The texts come from [Wiktenauer](https://wiktenauer.com), the main digital library
 of HEMA treatises. The `maestro.acquire.wiktenauer` module:
@@ -71,6 +73,24 @@ of HEMA treatises. The `maestro.acquire.wiktenauer` module:
 - **retries** up to 3 times on network or server errors, with increasing waits; it
   does not retry API errors (e.g. a page that does not exist), because retrying
   would not change the result.
+
+### Parsing
+
+On Wiktenauer, *Fior di Battaglia* is a set of tables that align several manuscripts
+side by side. The `maestro.parse.fiore` module extracts the **Getty manuscript**
+(MS Ludwig XV 13) into one validated passage per play:
+
+- it rebuilds each table as a full grid, because cells spanning several rows
+  (`rowspan`) shift the others in the HTML;
+- it finds the columns by their header, not by their position, which changes from
+  table to table;
+- it cleans the text while keeping the transcriber's editorial marks (`[!]` for
+  *sic*, `m[e]zo` for a letter supplied by the editor);
+- it gives every passage its folio and a stable id based on the manuscript's own
+  reference, such as `fiore_getty:23r-a` (folio 23 recto, figure a).
+
+The reasoning behind each choice, and what the real data revealed along the way, is
+in the [development log](docs/DEVLOG.md).
 
 ## Installation
 
@@ -116,6 +136,35 @@ Next to the HTML, a `.meta.json` file records the provenance:
 }
 ```
 
+Then parse it:
+
+```bash
+python scripts/02_parse.py
+```
+
+The passages are saved in `corpus/processed/fiore_getty.jsonl`, one per line, and the
+script prints a summary to check the result (passages, folios, translations,
+illustrations, passages per section). A passage looks like this (texts shortened):
+
+```json
+{
+  "passage_id": "fiore_getty:23r-a",
+  "treatise_id": "fiore_getty",
+  "treatise_title": "Fior di Battaglia (MS Ludwig XV 13)",
+  "author": "Fiore de'i Liberi",
+  "year_circa": 1410,
+  "section": "Sword in Two Hands, Introduction",
+  "folio": "23r",
+  "text": "· Colpi Fendenti · ¶ Noii semo fendenti & in l'arte façemo questione d...",
+  "language": "ita-arc",
+  "translation_en": "Downward Blows We are downward blows and we dispute By cleav...",
+  "image_urls": ["https://wiktenauer.com/images/thumb/e/e1/MS_Ludwig_XV_13_23r..."],
+  "source_url": "https://wiktenauer.com/wiki/Fiore_de'i_Liberi",
+  "source_license": "CC-BY-SA-4.0",
+  "source_revision": 163576
+}
+```
+
 ## Repository layout
 
 ```
@@ -127,13 +176,15 @@ maestro-darme/
 │   │   └── wiktenauer.py     # client for the Wiktenauer MediaWiki API
 │   └── parse/
 │       ├── schemas.py        # TreatisePassage: the validated shape of a passage
-│       └── fiore.py          # parser for Fiore dei Liberi (in progress)
+│       └── fiore.py          # parser for Fiore dei Liberi (Getty manuscript)
 ├── scripts/
 │   ├── 01_acquire.py         # downloads the treatises into corpus/raw/
+│   ├── 02_parse.py           # parses them into corpus/processed/*.jsonl
 │   └── explore_html.py       # summarises the tables of a downloaded page
 ├── tests/
 │   ├── fixtures/
-│   │   └── mini_fiore.html   # a miniature of the real page, with all its traps
+│   │   ├── mini_fiore.html       # a miniature of the real page, with all its traps
+│   │   └── mini_fiore.meta.json  # its provenance file
 │   └── test_parse_fiore.py
 ├── docs/
 │   ├── DEVLOG.md             # findings and design decisions
@@ -154,7 +205,7 @@ What this exploration revealed (and why it shapes the parser) is described in th
 ## Roadmap
 
 - [x] Text acquisition from Wiktenauer, with provenance and revision tracking
-- [ ] Parsing of the transcriptions into structured passages (original text, translation, folio)
+- [x] Parsing of the transcriptions into structured passages (original text, translation, folio)
 - [ ] Indexing with multilingual embeddings
 - [ ] Hybrid semantic + BM25 search, with normalisation of historical spelling
 - [ ] Evaluation on a set of questions with expected sources (recall@k, MRR)

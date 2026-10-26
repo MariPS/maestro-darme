@@ -4,7 +4,7 @@ Findings and design decisions made while building the project, grouped by topic.
 The code shows *what* the project does; this log records *why*, and what turned out
 to be different from what I expected.
 
-*Last updated: 2026-10-25*
+*Last updated: 2026-10-26*
 
 ---
 
@@ -283,11 +283,91 @@ is removed only when it opens the text**.
 
 Each decision is pinned down by a test, including the "keep" ones.
 
+## 10. From rows to passages
+
+In the table, each row puts the same play side by side in all the
+manuscripts. But the manuscripts do not match one to one, and Wiktenauer bridges the
+differences with `rowspan`. Two opposite situations appear:
+
+- **one Getty text for two translations** (e.g. *Dagger, 3rd Master*): the
+  Getty describes in one paragraph what another manuscript splits into two figures, so
+  the Getty cell covers two rows, each with its own translation;
+- **one translation for two Getty texts** (e.g. *Mounted Fencing*): the second
+  Getty cell is a scribe's note ("Questa glosa va al Re di qua", "this gloss belongs to
+  the king over here") with no translation of its own.
+
+Grouping rows only by the translation cell handles the second case but not the first.
+The rule `group_rows()` uses instead: **a row continues the previous passage
+if it shares with the row above either the Getty cell or the translation cell.** Since
+a `rowspan` always covers consecutive rows, comparing each row with the one above is
+enough.
+
+`passage_content()` then reads each column of a passage: the Getty text, the manuscript
+reference, the translation. Two details matter:
+
+- the same cell is the *same object* in several rows of the grid, so it must be read
+  once, otherwise its text would appear twice in a row;
+- only non-empty parts are joined, and an empty translation becomes `None`, not `""`:
+  in the schema `None` means "missing", while `""` looks like a translation.
+
+## 11. Illustrations
+
+The images in the illustration columns come from
+the Pisani Dossi manuscript, the Getty (`MS_Ludwig_XV_13_...`), the Paris
+(`MS_Latin_11269_...`), from the Morgan, and others. All of them are kept, since they 
+show the same play, but the **Getty's illustration
+comes first**, because the passage's text is the Getty's. Paths in the HTML are
+relative (`/images/thumb/...`) and become full URLs with the site's address. With
+`rowspan` the same image cell repeats across rows, so each URL is added once.
+
+## 12. Folios and stable identifiers
+
+Every passage needs a folio and an id. Three sources, tried in this order:
+
+| source |
+|---|
+| the marker in the Getty text (`[9r-t]`) |
+| the file name of a **Getty** illustration (`MS_Ludwig_XV_13_09v-b.jpg`) | 
+| the folio of the previous passage | 
+| none | 
+
+Only Getty images can give a folio: e.g. `MS_Latin_11269_31v-c` is folio 31v of the
+*Paris* manuscript, which numbers its own pages. Inheriting the previous folio works because a
+paragraph without a marker usually continues the page of the one before; this also
+crosses section boundaries, since a new section often starts on the page where the
+previous one ends.
+
+The id is `fiore_getty:` followed by the reference (`fiore_getty:09r-t`). Where the
+same reference appears more than once a suffix keeps the ids unique: `01r`, `01r.2`, `01r.3`... 
+The counts are kept for the whole page, not per table, otherwise two sections could produce the
+same id.
+
+## 13. The parsed corpus
+
+`parse()` puts it all together, table by table and passage by passage, and returns
+`TreatisePassage` objects: this is where the data model is actually enforced, on every
+single passage. `scripts/02_parse.py` writes them to
+`corpus/processed/fiore_getty.jsonl`, one per line, and prints a set of checks:
+
+| check | value |
+|---|---|
+| passages | 350 |
+| distinct folios | 84 (01r to 46v) |
+| passages without a folio | 0 |
+| with a translation | 350 |
+| with illustrations | 306 |
+| unique ids | yes |
+| sections | 25 |
+
+These numbers are the quality check of the whole parser: if a future download of the
+page changes them, something in the source has changed and needs a look.
+
 ## Next steps
 
-The parser for the Getty text, continued:
+Index the passages so that they can be searched:
 
-1. Group rows into passages (rows that share a translation cell), collect the
-   illustrations, recover missing folios, build stable ids.
-2. A `parse()` function and a script that writes
-   `corpus/processed/fiore_getty.jsonl`, with summary statistics to check the result.
+1. Decide the unit of search (for Fiore a passage is already a natural unit) and the
+   text that represents it: the original alone, or the original with its translation.
+2. Compute multilingual embeddings and store them in a local vector database.
+3. Add lexical search (BM25), which needs a copy of the text without the editorial
+   marks (`m[e]zo` must become `mezo`).

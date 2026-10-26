@@ -3,6 +3,10 @@ Parser for Fiore dei Liberi, "Fior di Battaglia", Getty manuscript (MS Ludwig XV
 """
 import re
 import copy
+from pathlib import Path
+from bs4 import BeautifulSoup
+from maestro.acquire.wiktenauer import read_meta
+from maestro.parse.schemas import TreatisePassage
 from maestro import config
 
 # Manuscript reference in the Getty text: "[9r-t]", "[ 22v-d ]", "[1r]"
@@ -14,6 +18,18 @@ SPACE_RE = re.compile(r"\s+")
 # Translators number their paragraphs: "[10] With the grips...". Only a number at the
 # very START is dropped; inside the text numbers belong to lists ("[1] strength, [2] speed").
 LEADING_NUMBER_RE = re.compile(r"^\[\d+\]\s*")
+# Folio and figure in the file name of a Getty illustration: ".../MS_Ludwig_XV_13_09v-b.jpg"
+GETTY_IMAGE_RE = re.compile(r"MS_Ludwig_XV_13_(\d{1,3}[rv])(?:-([a-z0-9]+))?\.(?:jpg|png)")
+
+
+# --- Fixed data about the treatise ---
+TREATISE_ID = "fiore_getty"
+TREATISE_TITLE = "Fior di Battaglia (MS Ludwig XV 13)"
+AUTHOR = "Fiore de'i Liberi"
+YEAR_CIRCA = 1410
+LANGUAGE = "ita-arc"             # archaic Italian (my own convention)
+SOURCE_LICENSE = "CC-BY-SA-4.0"  # Wiktenauer's default licence
+
 
 def rebuild_grid(table):
     """Turn an HTML table into a full rows x columns matrix of cells.
@@ -75,6 +91,12 @@ def normalize_folio(folio):
     return f"{int(number):02d}{side}"
 
 
+def make_reference(folio, position=None):
+    """("9r", "t") -> "09r-t";  ("1r", None) -> "01r"."""
+    folio = normalize_folio(folio)
+    return f"{folio}-{position}" if position else folio
+
+
 
 def cell_text(cell):
     """Clean text of a cell and its manuscript reference: ("Queste zinque...", "09r-t").
@@ -97,7 +119,7 @@ def cell_text(cell):
 
     m = MARKER_RE.search(text)
     if m:
-        reference_folio = normalize_folio(m.group(1)) + (f"-{m.group(2)}" if m.group(2) else '')
+        reference_folio = make_reference(m.group(1), m.group(2))
 
     text = MARKER_RE.sub(" ", text)  # once reference_folio is saved, delete it from the text  
     text = SPACE_RE.sub(" ",text).strip()   # \s also matches the non-breaking space &#160;
@@ -212,3 +234,73 @@ def passage_content(grid, rows, columns):
 
     return {"text": text, "reference": reference,
             "translation": translation, "illustrations": illustrations}
+
+
+def reference_from_images(urls):
+    """The manuscript reference read from the first Getty illustration ("09v-b"), or None.
+
+    Only Getty images count: the other manuscripts number their own folios,
+    so "MS_Latin_11269_31v-c" (the Paris manuscript) says nothing about the Getty.
+    """
+    for url in urls:
+        m = GETTY_IMAGE_RE.search(url)
+        if m:
+            return make_reference(m.group(1), m.group(2))
+    return None
+
+
+def unique_id(base, used):
+    """ 'base' the first time, then base.2, base.3...
+
+    'used' counts how many times each base has been seen: the caller creates it once
+    and passes the same dictionary every time, so the count goes on across calls.
+    """
+    used[base] = used.get(base, 0) + 1
+    return base if used[base] == 1 else f"{base}.{used[base]}"
+
+
+def parse(html_path):
+    """Read a downloaded Fiore page and return its Getty passages, in page order."""
+    html_path = Path(html_path)
+    meta = read_meta(html_path)                      # provenance: url, revision
+    soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "lxml")
+    tables = [t for t in soup.find_all("table") if "master" in (t.get("class") or [])]
+
+    passages = []
+    used_ids = {}          # remembered across tables: ids must be unique in the whole page
+    last_folio = None      # a passage without a reference continues the previous folio
+
+    for table in tables:
+        grid = rebuild_grid(table)
+        columns = find_columns(grid[0])
+        if columns["text"] is None:                  # a table without the Getty text
+            continue
+        section = section_title(table)
+
+        for rows in group_rows(grid, columns["text"], columns["translation"]):
+            content = passage_content(grid, rows, columns)
+            if not content["text"]:                  # a play the Getty does not have
+                continue
+
+            # Reference: the marker in the text, else a Getty illustration, else none
+            reference = content["reference"] or reference_from_images(content["illustrations"])
+            folio = reference.split("-")[0] if reference else last_folio   # "09v-b" -> "09v"
+            last_folio = folio
+
+            passages.append(TreatisePassage(
+                passage_id=unique_id(f"{TREATISE_ID}:{reference or folio}", used_ids),
+                treatise_id=TREATISE_ID,
+                treatise_title=TREATISE_TITLE,
+                author=AUTHOR,
+                year_circa=YEAR_CIRCA,
+                section=section,
+                folio=folio,
+                text=content["text"],
+                language=LANGUAGE,
+                translation_en=content["translation"],
+                image_urls=content["illustrations"],
+                source_url=meta["url"],
+                source_license=SOURCE_LICENSE,
+                source_revision=meta["revid"],
+            ))
+    return passages
