@@ -12,3 +12,9 @@ CORPUS_PROCESSED = ROOT / "corpus" / "processed"    # parsed passages (JSONL)
 
 # Used by the downloader (page URLs) and by the parser (image URLs).
 WIKTENAUER_BASE = "https://wiktenauer.com"
+
+# Multilingual embedding model: the same one must be used to index and to search.
+EMBED_MODEL = "BAAI/bge-m3"
+
+CHROMA_DIR = ROOT / ".chroma"       # vector database (generated, not versioned)
+COLLECTION_NAME = "passages"

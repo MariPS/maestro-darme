@@ -20,10 +20,11 @@ I trattati si aggiungono uno alla volta: il primo è *Fior di Battaglia* di Fior
 Liberi (tradizione italiana, ~1410); seguiranno lo Zettel di Liechtenauer con le sue
 glosse e la *Gründtliche Beschreibung* di Joachim Meyer (tradizione tedesca).
 
-**Stato**: in sviluppo. Sono pronti l'acquisizione dei testi e il parser per il primo
-trattato: *Fior di Battaglia* diventa 350 passaggi strutturati. Seguiranno
-l'indicizzazione e la ricerca; il resto della pipeline è descritto nella
-[roadmap](#roadmap).
+**Stato**: in sviluppo. Sono pronti l'acquisizione dei testi, il parser per il primo
+trattato e l'indicizzazione semantica: *Fior di Battaglia* diventa 350 passaggi
+strutturati, ciascuno con un embedding multilingue in un database vettoriale locale.
+Seguiranno la valutazione e la ricerca ibrida; il resto della pipeline è descritto
+nella [roadmap](#roadmap).
 
 ---
 
@@ -88,6 +89,21 @@ manoscritti. Il modulo `maestro.parse.fiore` ne estrae il **manoscritto Getty**
 - assegna a ogni passaggio il suo foglio e un identificativo stabile basato sul
   riferimento del manoscritto stesso, come `fiore_getty:23r-a` (foglio 23 recto,
   figura a).
+
+### Indicizzazione
+
+Ogni passaggio è una voce dell'indice: un gioco del trattato è già un'unità naturale,
+quindi non serve spezzare i testi in frammenti (*chunking*). Il pacchetto
+`maestro.index`:
+
+- costruisce il **testo da cercare** per ogni passaggio: titolo della sezione, testo
+  originale senza i segni editoriali (`m[e]zo` → `mezo`) e traduzione inglese, mentre
+  il testo mostrato e citato resta esattamente quello trascritto;
+- lo trasforma in un vettore con **BAAI/bge-m3**, un modello di embedding
+  multilingue eseguito in locale, così una domanda in italiano moderno o in inglese
+  può incontrare un passaggio in italiano del Quattrocento;
+- salva i vettori in **Chroma**, un database vettoriale tenuto in una cartella locale,
+  con solo l'id e pochi campi filtrabili; i passaggi completi restano nel file JSONL.
 
 Il ragionamento dietro ogni scelta, e ciò che i dati veri hanno rivelato lungo la
 strada, è nel [diario di sviluppo](docs/DEVLOG.md).
@@ -165,6 +181,23 @@ illustrazioni, passaggi per sezione). Un passaggio è fatto così (testi accorci
 }
 ```
 
+Infine, costruisci l'indice di ricerca:
+
+```bash
+python scripts/03_index.py
+```
+
+Lo script calcola un vettore per passaggio (circa 4 minuti su CPU; la prima volta
+scarica anche il modello, qualche GB) e li salva in `.chroma/`. Alla fine fa un
+controllo: ogni passaggio, usato come domanda, deve trovare per primo sé stesso.
+
+```
+350 passages to index
+350 vectors of 1024 numbers in 250s
+collection 'passages': 350 passages in .chroma/
+check: fiore_getty:01r -> fiore_getty:01r (distance 0.0000)
+```
+
 ## Struttura del repository
 
 ```
@@ -174,22 +207,29 @@ maestro-darme/
 │   ├── config.py             # percorsi e impostazioni usati da più moduli
 │   ├── acquire/
 │   │   └── wiktenauer.py     # client per la MediaWiki API di Wiktenauer
-│   └── parse/
-│       ├── schemas.py        # TreatisePassage: la forma validata di un passaggio
-│       └── fiore.py          # parser per Fiore dei Liberi (manoscritto Getty)
+│   ├── parse/
+│   │   ├── schemas.py        # TreatisePassage: la forma validata di un passaggio
+│   │   └── fiore.py          # parser per Fiore dei Liberi (manoscritto Getty)
+│   └── index/
+│       ├── search_text.py    # il testo che rappresenta un passaggio nella ricerca
+│       ├── embedder.py       # embedding multilingue (BAAI/bge-m3)
+│       └── store.py          # il database vettoriale (Chroma, su disco)
 ├── scripts/
 │   ├── 01_acquire.py         # scarica i trattati in corpus/raw/
 │   ├── 02_parse.py           # li analizza in corpus/processed/*.jsonl
+│   ├── 03_index.py           # costruisce l'indice di ricerca in .chroma/
 │   └── explore_html.py       # riassume le tabelle di una pagina scaricata
 ├── tests/
 │   ├── fixtures/
 │   │   ├── mini_fiore.html       # una miniatura della pagina vera, con tutte le sue trappole
 │   │   └── mini_fiore.meta.json  # il suo file di provenienza
-│   └── test_parse_fiore.py
+│   ├── test_parse_fiore.py
+│   └── test_search_text.py
 ├── docs/
 │   ├── DEVLOG.md             # scoperte e scelte di progetto (in inglese)
 │   └── images/               # banner, logo e immagine di anteprima
-└── corpus/                   # generato dagli script, non versionato
+├── corpus/                   # generato dagli script, non versionato
+└── .chroma/                  # il database vettoriale, generato, non versionato
 ```
 
 Per vedere com'è organizzato l'HTML scaricato, prima di analizzarlo:
@@ -206,7 +246,7 @@ Cosa ha rivelato questa esplorazione, e perché determina il parser, è descritt
 
 - [x] Acquisizione dei testi da Wiktenauer, con provenienza e revisione
 - [x] Parsing delle trascrizioni in passaggi strutturati (testo originale, traduzione, foglio)
-- [ ] Indicizzazione con embedding multilingue
+- [x] Indicizzazione con embedding multilingue in un database vettoriale locale
 - [ ] Ricerca ibrida semantica + BM25, con normalizzazione dell'ortografia antica
 - [ ] Valutazione su un insieme di domande con fonti attese (recall@k, MRR)
 - [ ] Risposte generate da un LLM locale, con verifica automatica delle citazioni

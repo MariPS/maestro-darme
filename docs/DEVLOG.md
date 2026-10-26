@@ -362,12 +362,113 @@ single passage. `scripts/02_parse.py` writes them to
 These numbers are the quality check of the whole parser: if a future download of the
 page changes them, something in the source has changed and needs a look.
 
+## 14. What is searched: the unit and its text
+
+**The unit of search is the passage.** Many RAG systems cut documents into chunks of
+fixed length, because their documents are long and have no natural divisions. Here
+the divisions already exist: a passage is one play of the treatise, with its own
+folio and id, and the longest one is 169 words. Cutting it would only split a play
+in two; joining several would mix different plays in one result. So there is no
+chunker: one passage, one entry in the index, one citation.
+
+**The text that is shown and the text that is searched are two different things.**
+The system shows and quotes the original exactly as transcribed, editorial marks
+included (section 9). For search, `search_text()` (`src/maestro/index/search_text.py`)
+builds another copy, one line each:
+
+| line | why |
+|---|---|
+| the section title (`Dagger, Introduction`) | the context: which weapon, which part of the treatise |
+| the original **without editorial marks** (`m[e]zo` → `mezo`, `[!]` removed) | a question will contain `mezo`, never `m[e]zo` |
+| the English translation, when there is one | it carries the meaning in modern language |
+
+The translation matters most: a question in modern Italian or English is much closer
+to the translation than to 15th-century Italian. The editorial marks are removed by
+two small rules, `[!]` and "one to four lowercase letters in brackets", so the
+translator's insertions in the translation (`[Dagger Remedy]`) are left alone.
+
+## 15. Embeddings
+
+An embedding model turns a text into a list of numbers (a **vector**) such that texts
+with a similar meaning get similar vectors. The search then compares the vector of
+the question with the vectors of the passages.
+
+**Model: `BAAI/bge-m3`**, open source and run locally (`src/maestro/index/embedder.py`).
+It is multilingual, which is the requirement here: the question can be in Italian or
+English, the passage is in archaic Italian *and* English, and the vectors must meet
+in the middle. Each vector has 1024 numbers. The name is in `config.py`, because the
+same model must be used to index and to search: vectors of two different models are
+not comparable, even when they have the same length.
+
+**Normalised vectors.** Every vector is scaled to length 1, so the cosine similarity
+of two texts is simply their dot product, from about 0 (unrelated) to 1 (same
+meaning). A first check on single terms:
+
+| pair | similarity |
+|---|---|
+| "posta di donna" ↔ "stance of the queen" | 0.53 |
+| "dente di zenghiaro" ↔ "boar's tusk" | 0.41 |
+
+The model connects a term with its translation, but more weakly for rare archaic
+words. The absolute values say little on their own: what counts is the *ranking*,
+whether the right passage comes before the others.
+
+
+## 16. The vector store
+
+The vectors are saved in **Chroma**, in local mode: no server, just a folder
+(`.chroma/`, 2.3 MB for 350 passages, not versioned since a script rebuilds it).
+
+With 350 vectors a database is not strictly needed: multiplying the question vector
+by all of them and sorting the results takes milliseconds. What Chroma adds is
+**persistence** (the 4 minutes of embeddings are paid once, not at every question),
+an index (**HNSW**) that finds the nearest vectors without comparing the question
+with all of them, which will matter when more treatises are added, and **metadata**
+next to each vector, usable as filters.
+
+Choices in `src/maestro/index/store.py`:
+
+- **`hnsw:space: cosine`**: Chroma works with *distances* (smaller is closer); with
+  this setting the distance is `1 − cosine similarity`.
+- **`embedding_function=None`**: Chroma can compute embeddings itself, with a default
+  model that only knows English. The vectors come from `embedder.py`, and this says
+  so explicitly.
+- **Only the id, the vector and three fields** (`treatise_id`, `section`, `folio`)
+  go into Chroma. Its metadata accept only strings, numbers and booleans: no lists
+  (`image_urls`), no `None` (hence `folio or ""`). The full passage stays in the JSONL
+  file, the single source of truth, and is looked up by id.
+- **The index is rebuilt from scratch every time** (`scripts/03_index.py`). If the
+  corpus is parsed again, passages can disappear or change; updating the index piece
+  by piece would mean tracking those differences. Rebuilding takes 4 minutes.
+
+T
+## 17. A first question
+
+A first real question, *"come si para un fendente?"* ("how do you parry a downward
+blow?"):
+
+| rank | passage | section | similarity | content |
+|---|---|---|---|---|
+| 1 | 07v-c | Grappling | 0.57 | a hold the opponent "cannot defend against" |
+| 2 | 09v-b | Dagger, Introduction | 0.55 | what a downward blow is, with the dagger |
+| 3 | 23r-a | Sword in Two Hands, Introduction | 0.55 | what a downward blow is, with the sword |
+| 4 | 45v-a | Mounted Fencing | 0.54 | a counter on horseback |
+| 5 | 45r-b | Mounted Fencing | 0.53 | |
+
+The passage that actually answers is `19r-d` (*Dagger vs. Sword*: "if someone attacks
+me with a sword to the head, I make this cover..."), and it comes **18th**, at 0.50.
+Semantic search caught the *topic* (downward blows, defending) but not the
+*intent* (how to parry one). And the similarities are all close together, between
+0.50 and 0.57: small differences decide the ranking.
+
+This is not a reason to change the model at random, but to measure first. One
+question proves nothing either way.
+
 ## Next steps
 
-Index the passages so that they can be searched:
-
-1. Decide the unit of search (for Fiore a passage is already a natural unit) and the
-   text that represents it: the original alone, or the original with its translation.
-2. Compute multilingual embeddings and store them in a local vector database.
-3. Add lexical search (BM25), which needs a copy of the text without the editorial
-   marks (`m[e]zo` must become `mezo`).
+1. **Evaluation**: a set of questions, each with the passages that should answer it,
+   and two measures (recall@k: is the right passage among the first k? MRR: how high
+   is it?). Every later change to search will be judged on these numbers.
+2. **Lexical search (BM25)**, on the same search text: it rewards exact terms
+   (`fendente`, `coperta`), which semantic search treats only as "similar".
+3. **Hybrid search**: merge the two rankings into one.

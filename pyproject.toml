@@ -3,10 +3,12 @@ name="maestro-darme"
 version="0.1.0"
 requires-python=">=3.11"
 dependencies=[
-    "requests",         # download from Wiktenauer
-    "beautifulsoup4",   # navigate the HTML
-    "lxml",             # fast HTML parser used by BeautifulSoup
-    "pydantic",         # data schema (validation of passages)
+    "requests",                 # download from Wiktenauer
+    "beautifulsoup4",           # navigate the HTML
+    "lxml",                     # fast HTML parser used by BeautifulSoup
+    "pydantic",                 # data schema (validation of passages)
+    "sentence-transformers",    # multilingual embeddings (BAAI/bge-m3)
+    "chromadb",                 # local vetor database
 ]
 
 [build-system]
