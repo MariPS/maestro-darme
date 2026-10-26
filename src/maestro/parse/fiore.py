@@ -3,6 +3,7 @@ Parser for Fiore dei Liberi, "Fior di Battaglia", Getty manuscript (MS Ludwig XV
 """
 import re
 import copy
+from maestro import config
 
 # Manuscript reference in the Getty text: "[9r-t]", "[ 22v-d ]", "[1r]"
 # group 1 = folio (9r), group 2 = position of the figure on the page (t, d...), optional
@@ -105,3 +106,109 @@ def cell_text(cell):
     if PLACEHOLDER_RE.fullmatch(text):
         text = ""
     return text, reference_folio
+
+
+def section_title(table):
+    """The headings above a table, from h3 down: "Dagger, Introduction".
+
+    The h2 ("Treatise") is the same for every table, so it is left out:
+    the h3 is needed because two sections are called "Introduction".
+    """
+    headings = table.find_previous(["h2","h3","h4"])
+    if headings is None:
+        return "Untitled"
+    parts = [headings.get_text(" ", strip=True)]
+    
+    if headings.name == "h4":
+        parent = headings.find_previous("h3")
+        if parent is not None:
+            parts.insert(0, parent.get_text(" ", strip=True))
+    
+    return ", ".join(parts)
+
+
+def group_rows(grid, text_col, translation_col):
+    """Group the data rows into passages: a list of lists of row indexes.
+
+    A row continues the previous passage when it shares with the row above either
+    the Getty cell or the translation cell (one cell with rowspan covering both).
+    Both cases exist: one translation for two pieces of text, and one text for two
+    translations. Grouping by translation only would repeat that text twice.
+    """
+    groups = []
+    for r in range(1, len(grid)):                      # row 0 is the header
+        if groups:
+            above, here = grid[r - 1], grid[r]
+            same_text = here[text_col] is not None and here[text_col] is above[text_col]
+            same_translation = (translation_col is not None
+                                and here[translation_col] is not None
+                                and here[translation_col] is above[translation_col])
+            if same_text or same_translation:
+                groups[-1].append(r)
+                continue
+        groups.append([r])
+    return groups
+
+
+def image_urls(cells):
+    """Full URLs of the illustrations in the given cells, the Getty's first."""
+    urls = []
+    for cell in cells:
+        if cell is None:
+            continue
+        for img in cell.find_all("img"):
+            src = img.get("src","")
+            if not src:     # an <img> without an address
+                continue
+            if src.startswith("/"): # paths in the HTML are relative
+                src = config.WIKTENAUER_BASE + src
+            if src not in urls:     # with rowspan the same cell repeats
+                urls.append(src)
+    
+    # The passage's text is the Getty's, so its own illustration comes first.
+    urls.sort(key=lambda url: 0 if "MS_Ludwig" in url else 1)
+    return urls
+
+
+
+def passage_content(grid, rows, columns):
+    """Text, manuscript reference, translation and illustrations of one passage."""
+
+    text_col = columns["text"]
+    translation_col = columns["translation"]
+    illustrations_col = columns["illustrations"]
+
+    # --- text, reference and translation ---
+    text, reference = cell_text(grid[rows[0]][text_col])
+
+    translation = None
+    if translation_col is not None:
+        translation, _ = cell_text(grid[rows[0]][translation_col])
+    if len(rows) > 1:
+        text_cell_values = [grid[r_idx][text_col] for r_idx in rows]
+        if len(set(text_cell_values)) == 1:  # all text cells equal, then translations must be unified
+            if translation_col is not None:
+                for r_idx in rows[1:]:
+                    part = cell_text(grid[r_idx][translation_col])[0]
+                    if part != "":
+                        translation += f" {part}"
+        else:   # else all cell translations equal, text must be unified
+            for r_idx in rows[1:]:
+                part = cell_text(grid[r_idx][text_col])[0]
+                if part:
+                    text += f" {part}"
+    
+    text = text.strip()
+    if translation is not None:
+        translation = translation.strip()
+        if translation == "":
+            translation = None
+    
+    
+    # --- illustration ---
+    cells = [grid[r][col] for col in illustrations_col for r in rows]
+    illustrations = image_urls(cells)
+
+
+    return {"text": text, "reference": reference,
+            "translation": translation, "illustrations": illustrations}
